@@ -1,3 +1,4 @@
+import Taro from '@tarojs/taro'
 import { deepClone } from './useCommon';
 window.addEventListener("unhandledrejection", e => {
     console.log(e.reason);
