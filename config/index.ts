@@ -4,28 +4,51 @@
  * @Author: houqiangxie
  * @Date: 2023-10-12 10:24:00
  * @LastEditors: houqiangxie
- * @LastEditTime: 2023-10-12 16:06:44
+ * @LastEditTime: 2023-10-17 14:49:12
  */
 import path from 'node:path'
 // 导入unocss
 import UnoCSS from 'unocss/webpack'
+import ComponentsPlugin from 'unplugin-vue-components/webpack'
+import NutUIResolver from '@nutui/nutui-taro/dist/resolver'
 const config = {
   projectName: 'taro-template',
   date: '2023-10-12',
-  designWidth: 750,
+  designWidth(input) {
+    // 配置 NutUI 375 尺寸
+    if (input?.file?.replace(/\\+/g, '/').indexOf('@nutui') > -1) {
+      return 375
+    }
+    // 全局使用 Taro 默认的 750 尺寸
+    return 750
+  },
   deviceRatio: {
     640: 2.34 / 2,
     750: 1,
-    828: 1.81 / 2
+    828: 1.81 / 2,
+    375: 2 / 1
   },
   sourceRoot: 'src',
   outputRoot: 'dist',
-  plugins: [[
+  plugins: [
+    '@tarojs/plugin-html',
+    [
     'tarojs-router-next-plugin',
     {
       ignore: ['api']
     }
-  ]],
+    ]],
+  // 配置全局 Scss 变量
+  sass: {
+    resource: [
+      path.resolve(__dirname, '..', 'src/assets/styles/custom_theme.scss')
+    ],
+    // 默认京东 APP 10.0主题 > @import "@nutui/nutui-taro/dist/styles/variables.scss";
+    // 京东科技主题 > @import "@nutui/nutui-taro/dist/styles/variables-jdt.scss";
+    // 京东B商城主题 > @import "@nutui/nutui-taro/dist/styles/variables-jdb.scss";
+    // 京东企业业务主题 > @import "@nutui/nutui-taro/dist/styles/variables-jddkh.scss";
+    data: `@import "@nutui/nutui-taro/dist/styles/variables.scss";`
+  },
   defineConstants: {
   },
   copy: {
@@ -39,7 +62,8 @@ const config = {
   compiler: {
     type:'webpack5',
     prebundle: {
-      exclude: ['tarojs-router-next']
+      exclude: ['tarojs-router-next'],
+      enable: false,
     }
   },
   alias: {
@@ -66,6 +90,9 @@ const config = {
         }
       })
       chain.plugin('unocss').use(UnoCSS())
+      chain.plugin('unplugin-vue-components').use(ComponentsPlugin({
+        resolvers: [NutUIResolver({ taro: true })]
+      }))
       // https://github.com/unocss/unocss
     },
     postcss: {
@@ -118,6 +145,10 @@ const config = {
     webpackChain(chain) {
       // https://github.com/unocss/unocss
       chain.plugin('unocss').use(UnoCSS())
+      chain.plugin('unplugin-vue-components').use(ComponentsPlugin({
+        include: [/\.[tj]sx?$/, /\.vue$/, /\.vue\?vue/],
+        resolvers: [NutUIResolver({ taro: true })]
+      }))
     },
   }
 }
