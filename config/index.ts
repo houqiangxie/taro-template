@@ -4,13 +4,14 @@
  * @Author: houqiangxie
  * @Date: 2023-10-12 10:24:00
  * @LastEditors: houqiangxie
- * @LastEditTime: 2023-10-17 14:49:12
+ * @LastEditTime: 2023-10-18 14:47:15
  */
 import path from 'node:path'
 // 导入unocss
 import UnoCSS from 'unocss/webpack'
 import ComponentsPlugin from 'unplugin-vue-components/webpack'
 import NutUIResolver from '@nutui/nutui-taro/dist/resolver'
+import AutoImport from 'unplugin-auto-import/webpack'
 const config = {
   projectName: 'taro-template',
   date: '2023-10-12',
@@ -70,7 +71,7 @@ const config = {
     '@': path.resolve(__dirname, '..','src')
   },
   cache: {
-    enable: true // Webpack 持久化缓存配置，建议开启。默认配置请参考：https://docs.taro.zone/docs/config-detail#cache
+    enable: false // Webpack 持久化缓存配置，建议开启。默认配置请参考：https://docs.taro.zone/docs/config-detail#cache
   },
   mini: {
     webpackChain(chain) {
@@ -91,7 +92,12 @@ const config = {
       })
       chain.plugin('unocss').use(UnoCSS())
       chain.plugin('unplugin-vue-components').use(ComponentsPlugin({
-        resolvers: [NutUIResolver({ taro: true })]
+        resolvers: [NutUIResolver({ taro: true })],
+        dts: 'src/types/components.d.ts',
+      }))
+      chain.plugin('unplugin-auto-import').use(AutoImport({
+        dirs: ['src/composables'],
+        dts: 'src/types/auto-imports.d.ts',
       }))
       // https://github.com/unocss/unocss
     },
@@ -146,8 +152,12 @@ const config = {
       // https://github.com/unocss/unocss
       chain.plugin('unocss').use(UnoCSS())
       chain.plugin('unplugin-vue-components').use(ComponentsPlugin({
-        include: [/\.[tj]sx?$/, /\.vue$/, /\.vue\?vue/],
-        resolvers: [NutUIResolver({ taro: true })]
+        resolvers: [NutUIResolver({ taro: true })],
+        dts: 'src/types/components.d.ts',
+      }))
+      chain.plugin('unplugin-auto-import').use(AutoImport({
+        dirs: ['src/composables'],
+        dts: 'src/types/auto-imports.d.ts',
       }))
     },
   }

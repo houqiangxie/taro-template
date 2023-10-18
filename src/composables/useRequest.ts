@@ -1,9 +1,4 @@
 import Taro from '@tarojs/taro'
-import { deepClone } from './useCommon';
-window.addEventListener("unhandledrejection", e => {
-    console.log(e.reason);
-    e.preventDefault();
-});
 /**
  * config 自定义配置项
  * @param withoutCheck 不使用默认的接口状态校验，直接返回 response
@@ -25,7 +20,8 @@ let configDefault: any = {
     cached: false,
     catchExpires: null,
     proxy: true,
-    responseType: "json",
+    // responseType: "json",
+    // enableHttp2:true,
 };
 
 // 根据请求方式，url等生成请求key
@@ -92,34 +88,22 @@ async function resultReduction(response: any,request: any) {
 async function useRequest(method: string, path: string, data: { [prop: string]: any }, config: any = {}): Promise<{ data: any, code: number }> {
     // if (!config.hideLoading) commonStore.showLoading = true;
     const token = Taro.getStorageSync('token')?.token;
-    const controller = new AbortController();
-    const { signal } = controller;
     let configTemp = Object.assign(
         {
-            responseType: 'json',
-            headers: {
+            header: {
                 "Content-Type": config.formData
                     ? "application/x-www-form-urlencoded" :
                     config.fileUpload ? 'multipart/form-data;'
                         : "application/json;charset=utf-8",
                 // authorization: `Bearer ${token}`,
                 token,
-                Authorization: '1104a11f70ed485d9cf9f2f6f957daf6'
+                Authorization: token
             },
         },
-        { signal, ...configDefault, ...config, controller }
+        {  ...configDefault, ...config }
     );
     if (configTemp.isNotAuth) delete configTemp.headers['token'];
     if (configTemp.fileUpload) delete configTemp.headers["Content-Type"];
-    removePendingRequest(configTemp); // 检查是否存在重复请求，若存在则取消已发的请求
-    addPendingRequest(configTemp); // 把当前请求信息添加到pendingRequest对象中
-    if (configTemp.cached) {//缓存数据
-        const requestKey = generateReqKey(configTemp)
-        const res = await db.get(requestKey)
-        if (res) return Promise.resolve({ cached: true, requestKey, data: res, code: 0 });
-    }
-
-
     if (!configTemp.fileUpload) {
         const paramsData = deepClone(data);
         for (const key in paramsData) {
@@ -129,12 +113,13 @@ async function useRequest(method: string, path: string, data: { [prop: string]: 
         }
         data = paramsData;
     }
-    path = (configTemp?.proxy ? import.meta.env.VITE_baseUrl : '') + path;
+    // path = (configTemp?.proxy ? process.env.VITE_baseUrl : '') + path;
+    path = (configTemp?.proxy ? 'http://172.17.30.13:28999' : '') + path;
     let myInit = {
         method,
         ...configDefault,
         ...configTemp,
-        body: configTemp.fileUpload ? data : (configTemp.formData ? Body.form(data) : Body.json(data))
+        data:configTemp.formData ? new URLSearchParams(data) : data
     };
     if (method === 'GET') delete myInit.body
     let params = '';
@@ -143,13 +128,12 @@ async function useRequest(method: string, path: string, data: { [prop: string]: 
         params = (JSON.stringify(data) as any)?.replace(/:/g, '=')?.replace(/"/g, '')?.replace(/,/g, '&')?.match(/\{([^)]*)\}/)[1];
     }
     return new Promise((resolve, reject) => {
-        fetch(params ? `${path}${params ? "?" : ""}${params}` : path, myInit).then(async response => {
+        Taro.request({ url: params ? `${path}${params ? "?" : ""}${params}` : path ,...myInit}).then(async response => {
+            console.log('response: ', response);
             // TODO: 这里是复制一份结果处理，在这里可以做一些操作
-            commonStore.showLoading = false;
-            const res: any = await resultReduction(response,configTemp);
-            console.log('res: ', res);
-            removePendingRequest(configTemp); // 从pendingRequest对象中移除请求
-            if ((response.status == 401 || res.code == 401) && !configTemp.withoutCheck) {
+            // commonStore.showLoading = false;
+            const res: any =  response.data;
+            if ((response.statusCode == 401 || res.code == 401) && !configTemp.withoutCheck) {
                 const { hash, pathname } = location;
                 if (!hash.includes('returnUrl')) {
                     location.href = pathname + '#/login?returnUrl=' + encodeURIComponent(hash);;
@@ -158,14 +142,14 @@ async function useRequest(method: string, path: string, data: { [prop: string]: 
             }
             if (res.code == 403) window.history.go(-1);
             // HTTP 状态码 2xx 状态入口，data.code 为 200 表示数据正确，无任何错误
-            if (response.status >= 200 && response.status < 300 && res.code != 401) {
+            if (response.statusCode >= 200 && response.statusCode < 300 && res.code != 401) {
                 if (res.code !== 0 && res.message && !configTemp.withoutCheck) {
                     window.$message.error(res.code !== 500 ? res.message : '接口异常，请联系管理员!');
                 }
-                if (configTemp.cached) {
-                    const requestKey = generateReqKey(configTemp)
-                    db.set(requestKey, deepClone(res), configTemp.catchExpires)
-                }
+                // if (configTemp.cached) {
+                //     const requestKey = generateReqKey(configTemp)
+                //     db.set(requestKey, deepClone(res), configTemp.catchExpires)
+                // }
                 return resolve(res);
             } else {
                 // 非 2xx 状态入口
